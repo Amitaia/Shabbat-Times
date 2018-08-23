@@ -11,9 +11,9 @@ Get Shabbat Times in HomeAssistant
 
 ```python
 - platform: shabbat_hagg
-  latitude: 32.0667
-  longitude: 34.7667
-  geoid: 293918
+  latitude: 0000
+  longitude: 0000
+  geoid: 0000
   havdalah_calc: 42 
   scan_interval: 60
   resources:
@@ -33,9 +33,9 @@ Get Shabbat Times in HomeAssistant
   
   ### Entity Optional
   
-  havdalah_calc:  By defaule he get 42 Min , you can set 50 or 72 for other methods 
+  havdalah_calc =   By defaule he get 42 Min , you can set 50 or 72 for other methods 
   
-  scan_interval: By defaule he get 60 seconds , you can set what you wants...
+  scan_interval =   By defaule he get 60 seconds , you can set what you wants...
   
   ### Sensor Views Options :
   
