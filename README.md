@@ -28,8 +28,8 @@ Updates 26.08.2018
     - parasha
     - hebrew_date
     - sunset
-    - is_shabbat -- state get True if is shabbat and False is shabbat end.
-    - is_holiday -- not work for now...
+    - is_shabbat // state get True if is shabbat and False is shabbat end.
+    - is_holiday // not work for now...
   ```
   ### Entity Requirements
   
