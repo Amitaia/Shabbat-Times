@@ -19,14 +19,16 @@ SCAN_INTERVAL = datetime.timedelta(seconds=60)
 SENSOR_PREFIX = 'Shabbat '
 GEOID = 'geoid'
 HAVDALAH_MINUTES = 'havdalah_calc'
+TIME_BEFORE_CHECK = 'time_before_check'
+TIME_AFTER_CHECK = 'time_after_check'
 LATITUDE = 'latitude'
 LONGITUDE = 'longitude'
 
 SENSOR_TYPES = {
     'in': ['כניסת שבת','mdi:candle','in'],
     'out': ['צאת שבת', 'mdi:exit-to-app','out'],
-    'in_auto': ['IN','mdi:candle','in_auto'],
-    'out_auto': ['OUT', 'mdi:exit-to-app','out_auto'],
+    'is_shabbat': ['IN','mdi:candle','is_shabbat'],
+    'is_holiday': ['OUT', 'mdi:candle','is_holiday'],
     'parasha': ['פרשת השבוע', 'mdi:book-open-variant','parasha'],
     'hebrew_date': ['תאריך עברי', 'mdi:calendar','hebrew_date'],
     'sunset': ['שקיעת החמה', 'mdi:weather-sunset','sunset'],
@@ -38,6 +40,8 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(LONGITUDE): cv.string,
     vol.Required(GEOID): cv.string,
     vol.Optional(HAVDALAH_MINUTES, default=42): int,
+    vol.Optional(TIME_BEFORE_CHECK, default=10): int,
+    vol.Optional(TIME_AFTER_CHECK, default=10): int,
     vol.Optional(CONF_SCAN_INTERVAL, default=SCAN_INTERVAL): cv.time_period,
     vol.Required(CONF_RESOURCES, default=[]):
         vol.All(cv.ensure_list, [vol.In(SENSOR_TYPES)]),
@@ -50,6 +54,8 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     geoid = config.get(GEOID)
     latitude = config.get(LATITUDE)
     longitude = config.get(LONGITUDE)
+    time_before = config.get(TIME_BEFORE_CHECK)
+    time_after = config.get(TIME_AFTER_CHECK)
 
     entities = []
 
@@ -60,7 +66,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
             SENSOR_TYPES[sensor_type] = [
                 sensor_type.title(), '', 'mdi:flash']
 
-        entities.append(Shabbat_Hagg(sensor_type,geoid,latitude,longitude,havdalah))
+        entities.append(Shabbat_Hagg(sensor_type,geoid,latitude,longitude,havdalah,time_before,time_after))
 
     add_entities(entities)
 
@@ -70,13 +76,15 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
 class Shabbat_Hagg(Entity):
     """Representation of a shabbat and hagg."""
 
-    def __init__(self, sensor_type,geoid,latitude,longitude,havdalah):
+    def __init__(self, sensor_type,geoid,latitude,longitude,havdalah,time_before,time_after):
         """Initialize the sensor."""
         self.type = sensor_type
         self._geoid = geoid
         self._latitude = latitude
         self._longitude = longitude
         self._havdalah = havdalah
+        self._time_before = time_before
+        self._time_after = time_after
         self._name = SENSOR_PREFIX + SENSOR_TYPES[self.type][2]
         self._friendly_name = SENSOR_TYPES[self.type][0]
         self._icon = SENSOR_TYPES[self.type][1]
@@ -105,28 +113,43 @@ class Shabbat_Hagg(Entity):
     @Throttle(SCAN_INTERVAL)
     def update(self):
         """update our sensor state."""
-        today = datetime.date.today()
+        datetoday = datetime.date.today()
+        fulltoday = datetime.datetime.today()
+        winter = '+02:00','+0200'
+        summer = '+03:00','+0300'
+        zonetime = '',''
         with urllib.request.urlopen(
             "https://www.hebcal.com/shabbat/?cfg=json&geonameid="+str(self._geoid)+"&m="
             +str(self._havdalah)+"") as url:
             hebcal_decoded = json.loads(url.read().decode())
-        if self.type == 'in':
+        if winter[0].__eq__(hebcal_decoded['items'][0]['date'][19:]):
+            zonetime = winter
+        else:
+            zonetime = summer
+        if self.type.__eq__('in'):
             self._state = hebcal_decoded['items'][0]['date'][11:16]
-        elif self.type == 'out':
-            self._state = hebcal_decoded['items'][2]['date'][11:16]
-        elif self.type == 'in_auto':
-            self._state = hebcal_decoded['items'][0]['date']
-        elif self.type == 'out_auto':
-            self._state = hebcal_decoded['items'][2]['date']
-        elif self.type == 'parasha':
+        elif self.type.__eq__('out'):
+            self._state = hebcal_decoded['items'][3]['date'][11:16]
+        elif self.type.__eq__('is_shabbat'):
+            is_in = datetime.datetime.strptime(hebcal_decoded['items'][0]['date'].replace(zonetime[0],zonetime[1]), '%Y-%m-%dT%H:%M:%S%z')
+            is_out = datetime.datetime.strptime(hebcal_decoded['items'][3]['date'].replace(zonetime[0],zonetime[1]), '%Y-%m-%dT%H:%M:%S%z')
+            is_in = is_in - datetime.timedelta(minutes=int(self._time_before))
+            is_out = is_out + datetime.timedelta(minutes=int(self._time_after))
+            if is_in.replace(tzinfo=None) < fulltoday and is_out.replace(tzinfo=None) > fulltoday :
+                self._state = 'True'
+            else:
+                self._state = 'False'
+        elif self.type.__eq__('is_holiday'):
+            self._state = hebcal_decoded['items'][3]['date']
+        elif self.type.__eq__('parasha'):
             self._state = hebcal_decoded['items'][1]['hebrew'][5:]
-        elif self.type == 'hebrew_date':
+        elif self.type.__eq__('hebrew_date'):
             with urllib.request.urlopen(
-                "https://www.hebcal.com/converter/?cfg=json&gy="+str(today.year)+"&gm="+str(
-                    today.month)+"&gd="+str(today.day)+"&g2h=1") as url:
+                "https://www.hebcal.com/converter/?cfg=json&gy="+str(datetoday.year)+"&gm="+str(
+                    datetoday.month)+"&gd="+str(datetoday.day)+"&g2h=1") as url:
                 sun_date = json.loads(url.read().decode())
                 self._state = sun_date['hebrew']
-        elif self.type == 'sunset':
+        elif self.type.__eq__('sunset'):
             with urllib.request.urlopen(
                 "https://api.sunrise-sunset.org/json?lat="+str(self._latitude)+"&lng="+str(self._longitude)+
                 "&date=now&formatted=0") as url:
