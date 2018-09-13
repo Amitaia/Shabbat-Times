@@ -17,7 +17,7 @@ Updates 13.09.2018
 ### Requirements
 
 * First need to create folder "sensor" in your HomeAssistant config/custom_components folder
-* Copy python file "shabbat_hagg.py" to the HA config ./custom_components/sensor folder.
+* Copy python file "shabbat.py" to the HA config ./custom_components/sensor folder.
 * Now you need to add those lines in sensor config :
 
 ```python
