@@ -6,6 +6,11 @@ Updates 26.08.2018
 2. add new feature : is_shabbat , now you have a sensor that can tell the HA that is shabbat or not .
 3. timezone are now dynamic for chnages in 31/10/2018
 
+Updates 13.09.2018
+1. create new sensor , now the data come more dynamic and not by index
+2. remove sunset sensor and is_hagg
+3. fix update data , now the data is update on 24H..not the sensors..only the data!
+
 
 ## Guide How to use it
 
@@ -16,7 +21,7 @@ Updates 26.08.2018
 * Now you need to add those lines in sensor config :
 
 ```python
-- platform: shabbat_hagg
+- platform: shabbat
   latitude: 0000
   longitude: 0000
   geoid: 0000
@@ -28,8 +33,7 @@ Updates 26.08.2018
     - parasha
     - hebrew_date
     - sunset
-    - is_shabbat // state get True if is shabbat and False is shabbat end.
-    - is_holiday // not work for now...
+    - is_shabbat """ state get True if is shabbat and False is shabbat end."""
   ```
   ### Entity Requirements
   
@@ -62,7 +66,6 @@ shabat:
    - sensor.shabbat_parasha
    - sensor.shabbat_in
    - sensor.shabbat_out
-   - sensor.shabbat_sunset
    - sensor.shabbat_is_shabbat
    
  ```
@@ -78,7 +81,6 @@ shabat:
           - sensor.shabbat_parasha
           - sensor.shabbat_in
           - sensor.shabbat_out
-          - sensor.shabbat_sunset
           - sensor.shabbat_is_shabbat
  ```
  * All sensors icon already set , but you can always customize them..
