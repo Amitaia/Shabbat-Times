@@ -11,6 +11,10 @@ Updates 13.09.2018
 2. remove sunset sensor and is_hagg
 3. fix update data , now the data is update on 24H..not the sensors..only the data!
 
+Updates 16.09.2018
+1. fix db time updates ( return for every 5 min)
+2. add validate time and date for result , if failed the state get 'Error' status
+
 
 ## Guide How to use it
 
@@ -32,7 +36,6 @@ Updates 13.09.2018
     - out
     - parasha
     - hebrew_date
-    - sunset
     - is_shabbat """ state get True if is shabbat and False is shabbat end."""
   ```
   ### Entity Requirements
