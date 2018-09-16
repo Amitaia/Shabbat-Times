@@ -131,11 +131,10 @@ class Shabbat_Hagg(Entity):
         elif self.type.__eq__('hebrew_date'):
             self._state = self.getHebrewDate()
                 
-    @Throttle(datetime.timedelta(hours=24))
+    @Throttle(datetime.timedelta(minutes=5))
     def updateDB(self):
         with urllib.request.urlopen(
-                "https://www.hebcal.com/shabbat/?cfg=json&geonameid=" + str(self._geoid) + "&m="
-                + str(self._havdalah) + "&i=off&min=off&maj=off&mod=off") as url:
+                "https://www.hebcal.com/shabbat/?cfg=json&geonameid=" + str(self._geoid) + "&i=off&min=off&maj=off&mod=off&m=" + str(self._havdalah)) as url:
             self.shabbatDB = json.loads(url.read().decode())
         with urllib.request.urlopen(
                     "https://www.hebcal.com/converter/?cfg=json&gy=" + str(self.datetoday.year) + "&gm=" + str(
@@ -146,6 +145,7 @@ class Shabbat_Hagg(Entity):
                 
     # get shabbat entrace
     def getTimeIn(self):
+        result = ''
         for extractData in self.shabbatDB['items']:
             if extractData['category'] == "candles":
                 result = extractData['date'][11:16]
@@ -155,6 +155,7 @@ class Shabbat_Hagg(Entity):
         
     # get shabbat time exit
     def getTimeOut(self):
+        result = ''
         for extractData in self.shabbatDB['items']:
             if extractData['category'] == "havdalah":
                 result = extractData['date'][11:16]
@@ -167,14 +168,16 @@ class Shabbat_Hagg(Entity):
         for extractData in self.shabbatDB['items']:
             if extractData['category'] == "candles":
                 self.shabbatin = extractData['date']
-        self.shabbatin = self.shabbatin[:22]+'00' 
+        if self.shabbatin != None:
+            self.shabbatin = self.shabbatin[:22]+'00' 
                 
     # get full time exit shabbat for check if is shabbat now
     def getFullTimeOut(self):
         for extractData in self.shabbatDB['items']:
             if extractData['category'] == "havdalah":
                 self.shabbatout = extractData['date']
-        self.shabbatout = self.shabbatout[:22]+'00'
+        if self.shabbatout != None:
+            self.shabbatout = self.shabbatout[:22]+'00'
 
     # get parashat hashavo'h
     def getParasha(self):
@@ -191,12 +194,15 @@ class Shabbat_Hagg(Entity):
 
     # check if is shabbat now / return true or false
     def isShabbat(self):
-        is_in = datetime.datetime.strptime(self.shabbatin, '%Y-%m-%dT%H:%M:%S%z')
-        is_out = datetime.datetime.strptime(self.shabbatout, '%Y-%m-%dT%H:%M:%S%z')
-        is_in = is_in - datetime.timedelta(minutes=int(self._time_before))
-        is_out = is_out + datetime.timedelta(minutes=int(self._time_after))
-        if is_in.replace(tzinfo=None) < self.fulltoday < is_out.replace(tzinfo=None):
-            return 'True'
+        if self.shabbatin != None and self.shabbatout != None:
+            is_in = datetime.datetime.strptime(self.shabbatin, '%Y-%m-%dT%H:%M:%S%z')
+            is_out = datetime.datetime.strptime(self.shabbatout, '%Y-%m-%dT%H:%M:%S%z')
+            is_in = is_in - datetime.timedelta(minutes=int(self._time_before))
+            is_out = is_out + datetime.timedelta(minutes=int(self._time_after))
+            if is_in.replace(tzinfo=None) < self.fulltoday < is_out.replace(tzinfo=None):
+                return 'True'
+            else:
+                return 'False'
         else:
             return 'False'
     
@@ -211,4 +217,3 @@ class Shabbat_Hagg(Entity):
             return True
         except ValueError:
             return False
-       
