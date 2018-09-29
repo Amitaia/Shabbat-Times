@@ -15,6 +15,10 @@ Updates 16.09.2018
 1. fix db time updates ( return for every 5 min)
 2. add validate time and date for result , if failed the state get 'Error' status
 
+Updates 30.09.2018
+1. change DB sorce ( hope that still be stable )
+2. now we check only in friday and saturday for shabbat times 
+
 
 ## Guide How to use it
 
