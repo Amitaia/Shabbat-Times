@@ -77,6 +77,8 @@ class Shabbat_Hagg(Entity):
     shabbatout = None
     datetoday = datetime.date.today()
     fulltoday = datetime.datetime.today()
+    friday = None
+    saturday = None
 
     def __init__(self, sensor_type, geoid, latitude, longitude, havdalah, time_before, time_after):
         """Initialize the sensor."""
@@ -133,8 +135,9 @@ class Shabbat_Hagg(Entity):
                 
     @Throttle(datetime.timedelta(minutes=5))
     def updateDB(self):
+        self.set_days()
         with urllib.request.urlopen(
-                "https://www.hebcal.com/shabbat/?cfg=json&geonameid=" + str(self._geoid) + "&i=off&min=off&maj=off&mod=off&m=" + str(self._havdalah)) as url:
+                "https://www.hebcal.com/hebcal/?v=1&cfg=fc&start=" + str(self.friday) + "&end=" + str(self.saturday) + "&ss=on&c=on&geo=geoname&geonameid="+ str(self._geoid) + "&m=" + str(self._havdalah) + "&s=on") as url:
             self.shabbatDB = json.loads(url.read().decode())
         with urllib.request.urlopen(
                     "https://www.hebcal.com/converter/?cfg=json&gy=" + str(self.datetoday.year) + "&gm=" + str(
@@ -142,13 +145,32 @@ class Shabbat_Hagg(Entity):
                 self.hebrew_dateDB = json.loads(heb_url.read().decode())
         self.getFullTimeIn()
         self.getFullTimeOut()
-                
+     
+    # set friday and saturday    
+    def set_days(self):
+        weekday = self.set_friday(datetime.date.today().isoweekday())
+        self.friday = datetime.date.today()+datetime.timedelta(days=weekday)
+        self.saturday = datetime.date.today()+datetime.timedelta(days=weekday+1)
+        
+    # get distantce days
+    def set_friday(self,day):
+        switcher = {
+            7: 5,
+            1: 5,
+            2: 4,
+            3: 3,
+            4: 2,
+            5: 0,
+            6: -1,
+        }
+        return switcher.get(day)
+    
     # get shabbat entrace
     def getTimeIn(self):
         result = ''
-        for extractData in self.shabbatDB['items']:
-            if extractData['category'] == "candles":
-                result = extractData['date'][11:16]
+        for extractData in self.shabbatDB:
+            if extractData['className'] == "candles":
+                result = extractData['start'][11:16]
         if self.isTimeFormat(result):
             return result
         return 'Error'
@@ -156,34 +178,35 @@ class Shabbat_Hagg(Entity):
     # get shabbat time exit
     def getTimeOut(self):
         result = ''
-        for extractData in self.shabbatDB['items']:
-            if extractData['category'] == "havdalah":
-                result = extractData['date'][11:16]
+        for extractData in self.shabbatDB:
+            if extractData['className'] == "havdalah":
+                result = extractData['start'][11:16]
         if self.isTimeFormat(result):
             return result
         return 'Error'
         
     # get full time entrace shabbat for check if is shabbat now
     def getFullTimeIn(self):
-        for extractData in self.shabbatDB['items']:
-            if extractData['category'] == "candles":
-                self.shabbatin = extractData['date']
+        for extractData in self.shabbatDB:
+            if extractData['className'] == "candles":
+                self.shabbatin = extractData['start']
         if self.shabbatin != None:
             self.shabbatin = self.shabbatin[:22]+'00' 
                 
     # get full time exit shabbat for check if is shabbat now
     def getFullTimeOut(self):
-        for extractData in self.shabbatDB['items']:
-            if extractData['category'] == "havdalah":
-                self.shabbatout = extractData['date']
+        for extractData in self.shabbatDB:
+            if extractData['className'] == "havdalah":
+                self.shabbatout = extractData['start']
         if self.shabbatout != None:
             self.shabbatout = self.shabbatout[:22]+'00'
 
     # get parashat hashavo'h
     def getParasha(self):
+        result = 'שבת מיוחדת'
         get_shabbat_name = None
-        for extractData in self.shabbatDB['items']:
-            if extractData['category'] == "parashat":
+        for extractData in self.shabbatDB:
+            if extractData['className'] == "parashat":
                 result = extractData['hebrew']
             for x in extractData.keys():
                 if x == 'subcat' and extractData[x] == 'shabbat':
