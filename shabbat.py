@@ -1,7 +1,7 @@
 """
 Platform to get Shabbath Times And Shabbath information for Home Assistant.
 
-Document will come soon....
+Document will come soon...
 """
 import logging
 import urllib
@@ -162,7 +162,7 @@ class Shabbat(Entity):
         self.friday = datetime.date.today()+datetime.timedelta(days=weekday)
         self.saturday = datetime.date.today()+datetime.timedelta(
             days=weekday+1)
-
+    
     @classmethod
     def set_friday(cls, day):
         """Set friday day."""
@@ -206,7 +206,7 @@ class Shabbat(Entity):
             if extract_data['className'] == "candles":
                 self.shabbatin = extract_data['start']
         if self.shabbatin is not None:
-            self.shabbatin = self.shabbatin[:22]+'00'
+            self.shabbatin = self.shabbatin
 
     # get full time exit shabbat for check if is shabbat now
     def get_full_time_out(self):
@@ -215,7 +215,7 @@ class Shabbat(Entity):
             if extract_data['className'] == "havdalah":
                 self.shabbatout = extract_data['start']
         if self.shabbatout is not None:
-            self.shabbatout = self.shabbatout[:22]+'00'
+            self.shabbatout = self.shabbatout
 
     # get parashat hashavo'h
     def get_parasha(self):
@@ -237,9 +237,9 @@ class Shabbat(Entity):
         """Check if is shabbat now / return true or false."""
         if self.shabbatin is not None and self.shabbatout is not None:
             is_in = datetime.datetime.strptime(
-                self.shabbatin, '%Y-%m-%dT%H:%M:%S%z')
+                self.shabbatin, '%Y-%m-%dT%H:%M:%S')
             is_out = datetime.datetime.strptime(
-                self.shabbatout, '%Y-%m-%dT%H:%M:%S%z')
+                self.shabbatout, '%Y-%m-%dT%H:%M:%S')
             is_in = is_in - datetime.timedelta(
                 minutes=int(self._time_before))
             is_out = is_out + datetime.timedelta(
