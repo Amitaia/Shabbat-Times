@@ -1,5 +1,6 @@
 """
 Platform to get Shabbath Times And Shabbath information for Home Assistant.
+
 Document will come soon....
 """
 import logging
@@ -263,4 +264,3 @@ class Shabbat(Entity):
             return True
         except ValueError:
             return False
-        
