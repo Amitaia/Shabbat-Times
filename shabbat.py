@@ -1,3 +1,7 @@
+"""
+Platform to get Shabbath Times And Shabbath information for Home Assistant.
+Document will come soon....
+"""
 import logging
 import urllib
 import json
@@ -21,7 +25,6 @@ TIME_BEFORE_CHECK = 'time_before_check'
 TIME_AFTER_CHECK = 'time_after_check'
 LATITUDE = 'latitude'
 LONGITUDE = 'longitude'
-
 SENSOR_TYPES = {
     'in': ['כניסת שבת', 'mdi:candle', 'in'],
     'out': ['צאת שבת', 'mdi:exit-to-app', 'out'],
@@ -44,7 +47,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
 
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
-    """Setup the shabbat config sensors."""
+    """Set up the shabbat config sensors."""
     havdalah = config.get(HAVDALAH_MINUTES)
     geoid = config.get(GEOID)
     latitude = config.get(LATITUDE)
@@ -66,10 +69,9 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     add_entities(entities)
 
 
-# pylint: disable=abstract-method
-
 class Shabbat(Entity):
-    """Representation of a shabbat and hagg."""
+    """Create shabbat sensor."""
+
     shabbat_db = None
     hebrew_date_db = None
     shabbatin = None
@@ -79,7 +81,8 @@ class Shabbat(Entity):
     friday = None
     saturday = None
 
-    def __init__(self, sensor_type, geoid, latitude, longitude, havdalah, time_before, time_after):
+    def __init__(self, sensor_type, geoid, latitude, longitude,
+                 havdalah, time_before, time_after):
         """Initialize the sensor."""
         self.type = sensor_type
         self._geoid = geoid
@@ -118,7 +121,7 @@ class Shabbat(Entity):
 
     @Throttle(SCAN_INTERVAL)
     def update(self):
-        """update our sensor state."""
+        """Update our sensor state."""
         self.datetoday = datetime.date.today()
         self.fulltoday = datetime.datetime.today()
         if self.type.__eq__('in'):
@@ -134,35 +137,40 @@ class Shabbat(Entity):
 
     @Throttle(datetime.timedelta(minutes=5))
     def update_db(self):
+        """Update the db."""
         self.set_days()
         with urllib.request.urlopen(
-            "https://www.hebcal.com/hebcal/?v=1&cfg=fc&start="
-            + str(self.friday) + "&end=" + str(self.saturday)
-            + "&ss=on&c=on&geo=geoname&geonameid=" + str(self._geoid)
-            + "&m=" + str(self._havdalah) + "&s=on"
+                "https://www.hebcal.com/hebcal/?v=1&cfg=fc&start="
+                + str(self.friday) + "&end=" + str(self.saturday)
+                + "&ss=on&c=on&geo=geoname&geonameid=" + str(self._geoid)
+                + "&m=" + str(self._havdalah) + "&s=on"
         ) as url:
             self.shabbat_db = json.loads(url.read().decode())
         with urllib.request.urlopen(
-            "https://www.hebcal.com/converter/?cfg=json&gy="
-            + str(self.datetoday.year) + "&gm=" + str(self.datetoday.month)
-            + "&gd=" + str(self.datetoday.day) + "&g2h=1"
+                "https://www.hebcal.com/converter/?cfg=json&gy="
+                + str(self.datetoday.year) + "&gm=" + str(self.datetoday.month)
+                + "&gd=" + str(self.datetoday.day) + "&g2h=1"
         ) as heb_url:
             self.hebrew_date_db = json.loads(heb_url.read().decode())
         self.get_full_time_in()
         self.get_full_time_out()
 
     def set_days(self):
+        """Set the friday and saturday."""
         weekday = self.set_friday(datetime.date.today().isoweekday())
         self.friday = datetime.date.today()+datetime.timedelta(days=weekday)
-        self.saturday = datetime.date.today()+datetime.timedelta(days=weekday+1)
+        self.saturday = datetime.date.today()+datetime.timedelta(
+            days=weekday+1)
 
-    def set_friday(self, day):
+    @classmethod
+    def set_friday(cls, day):
+        """Set friday day."""
         switcher = {
             7: 5,
-            1: 5,
-            2: 4,
-            3: 3,
-            4: 2,
+            1: 4,
+            2: 3,
+            3: 2,
+            4: 1,
             5: 0,
             6: -1,
         }
@@ -170,6 +178,7 @@ class Shabbat(Entity):
 
     # get shabbat entrace
     def get_time_in(self):
+        """Get shabbat entrace."""
         result = ''
         for extract_data in self.shabbat_db:
             if extract_data['className'] == "candles":
@@ -180,6 +189,7 @@ class Shabbat(Entity):
 
     # get shabbat time exit
     def get_time_out(self):
+        """Get shabbat time exit."""
         result = ''
         for extract_data in self.shabbat_db:
             if extract_data['className'] == "havdalah":
@@ -190,6 +200,7 @@ class Shabbat(Entity):
 
     # get full time entrace shabbat for check if is shabbat now
     def get_full_time_in(self):
+        """Get full time entrace shabbat for check if is shabbat now."""
         for extract_data in self.shabbat_db:
             if extract_data['className'] == "candles":
                 self.shabbatin = extract_data['start']
@@ -198,6 +209,7 @@ class Shabbat(Entity):
 
     # get full time exit shabbat for check if is shabbat now
     def get_full_time_out(self):
+        """Get full time exit shabbat for check if is shabbat now."""
         for extract_data in self.shabbat_db:
             if extract_data['className'] == "havdalah":
                 self.shabbatout = extract_data['start']
@@ -206,6 +218,7 @@ class Shabbat(Entity):
 
     # get parashat hashavo'h
     def get_parasha(self):
+        """Get parashat hashavo'h."""
         result = 'שבת מיוחדת'
         get_shabbat_name = None
         for extract_data in self.shabbat_db:
@@ -220,26 +233,34 @@ class Shabbat(Entity):
 
     # check if is shabbat now / return true or false
     def is_shabbat(self):
+        """Check if is shabbat now / return true or false."""
         if self.shabbatin is not None and self.shabbatout is not None:
-            is_in = datetime.datetime.strptime(self.shabbatin, '%Y-%m-%dT%H:%M:%S%z')
-            is_out = datetime.datetime.strptime(self.shabbatout, '%Y-%m-%dT%H:%M:%S%z')
-            is_in = is_in - datetime.timedelta(minutes=int(self._time_before))
-            is_out = is_out + datetime.timedelta(minutes=int(self._time_after))
-            if is_in.replace(tzinfo=None) < self.fulltoday < is_out.replace(tzinfo=None):
+            is_in = datetime.datetime.strptime(
+                self.shabbatin, '%Y-%m-%dT%H:%M:%S%z')
+            is_out = datetime.datetime.strptime(
+                self.shabbatout, '%Y-%m-%dT%H:%M:%S%z')
+            is_in = is_in - datetime.timedelta(
+                minutes=int(self._time_before))
+            is_out = is_out + datetime.timedelta(
+                minutes=int(self._time_after))
+            if (is_in.replace(tzinfo=None) <
+                    self.fulltoday < is_out.replace(tzinfo=None)):
                 return 'True'
-            else:
-                return 'False'
-        else:
             return 'False'
+        return 'False'
 
     # convert to hebrew date
     def get_hebrew_date(self):
+        """Convert to hebrew date."""
         return self.hebrew_date_db['hebrew']
 
     # check if the time is correct
-    def is_time_format(self, input):
+    @classmethod
+    def is_time_format(cls, input_time):
+        """Check if the time is correct."""
         try:
-            time.strptime(input, '%H:%M')
+            time.strptime(input_time, '%H:%M')
             return True
         except ValueError:
             return False
+        
