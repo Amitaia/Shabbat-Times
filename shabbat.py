@@ -158,7 +158,7 @@ class Shabbat(Entity):
 
     def update_db(self):
         """Update the db."""
-        if self.file_time_stamp is None or self.file_time_stamp != datetime.date.today() or pathlib.Path('shabbat_data.json').is_file() or pathlib.Path('hebdate_data.json').is_file():
+        if self.file_time_stamp is None or self.file_time_stamp != datetime.date.today():
             self.file_time_stamp = datetime.date.today()
             self.create_db_file()
         with open('shabbat_data.json', encoding='utf-8') as data_file:
