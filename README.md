@@ -26,11 +26,13 @@ Updates 07.10.2018
    so you need to besure that you put them in configuration.yaml . also need the TimeZone 
    see link : https://www.home-assistant.io/blog/2015/05/09/utc-time-zone-awareness/
    Example :
+   ```python
       homeassistant:
         latitude: 32.0667
         longitude: 34.7667
         time_zone: Asia/Jerusalem
-
+   ```
+   
 ## Guide How to use it
 
 ### Requirements
