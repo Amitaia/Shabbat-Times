@@ -19,6 +19,17 @@ Updates 30.09.2018
 1. change DB sorce ( hope that still be stable )
 2. now we check only in friday and saturday for shabbat times 
 
+Updates 07.10.2018
+1. recode the sensor , now is async so no need a for scan interval anymore
+2. all db now downloading to local json file and once a day the db check for change
+3. no need anymore for geoid and latitude and longitude . the sensor got it from HA config ,
+   so you need to besure that you put them in configuration.yaml . also need the TimeZone 
+   see link : https://www.home-assistant.io/blog/2015/05/09/utc-time-zone-awareness/
+   Example :
+      homeassistant:
+        latitude: 32.0667
+        longitude: 34.7667
+        time_zone: Asia/Jerusalem
 
 ## Guide How to use it
 
@@ -30,11 +41,9 @@ Updates 30.09.2018
 
 ```python
 - platform: shabbat
-  latitude: 0000
-  longitude: 0000
-  geoid: 0000
   havdalah_calc: 42 
-  scan_interval: 60
+  time_before_check: 10
+  time_after_check: 10
   resources:
     - in
     - out
@@ -42,13 +51,6 @@ Updates 30.09.2018
     - hebrew_date
     - is_shabbat """ state get True if is shabbat and False is shabbat end."""
   ```
-  ### Entity Requirements
-  
-  geoid (require) = need for your city location
-  
-  latitude (require) = need for the sun sunset - you can find like in ha configurtion.yaml
-  
-  longitude (require) = need for the sun sunset - you can find like in ha configurtion.yaml
   
   ### Entity Optional
   
@@ -57,8 +59,6 @@ Updates 30.09.2018
   time_before_check: By defaule he get 10 Min , you can set minutes so the sensor can check if is shabbat
   
   time_after_check: By defaule he get 10 Min , you can set minutes so the sensor can check if shabbat is ends..
-  
-  scan_interval =   By defaule he get 60 seconds , you can set what you wants...
   
   ### Sensor Views Options :
   
