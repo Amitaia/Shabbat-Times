@@ -6,26 +6,25 @@ Document will come soon...
 import logging
 import urllib
 import json
+import codecs
+import pathlib
 import datetime
 import time
 import voluptuous as vol
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 import homeassistant.helpers.config_validation as cv
 from homeassistant.const import (
-    CONF_SCAN_INTERVAL, CONF_RESOURCES)
+    CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME, CONF_RESOURCES)
 from homeassistant.util import Throttle
 from homeassistant.helpers.entity import Entity
 
 _LOGGER = logging.getLogger(__name__)
 
-SCAN_INTERVAL = datetime.timedelta(seconds=60)
 SENSOR_PREFIX = 'Shabbat '
-GEOID = 'geoid'
 HAVDALAH_MINUTES = 'havdalah_calc'
 TIME_BEFORE_CHECK = 'time_before_check'
 TIME_AFTER_CHECK = 'time_after_check'
-LATITUDE = 'latitude'
-LONGITUDE = 'longitude'
+
 SENSOR_TYPES = {
     'in': ['כניסת שבת', 'mdi:candle', 'in'],
     'out': ['צאת שבת', 'mdi:exit-to-app', 'out'],
@@ -35,40 +34,39 @@ SENSOR_TYPES = {
 }
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
-    vol.Required(GEOID): cv.string,
-    vol.Required(LONGITUDE): cv.string,
-    vol.Required(GEOID): cv.string,
+    vol.Optional(CONF_LATITUDE): cv.latitude,
+    vol.Optional(CONF_LONGITUDE): cv.longitude,
     vol.Optional(HAVDALAH_MINUTES, default=42): int,
     vol.Optional(TIME_BEFORE_CHECK, default=10): int,
     vol.Optional(TIME_AFTER_CHECK, default=10): int,
-    vol.Optional(CONF_SCAN_INTERVAL, default=SCAN_INTERVAL): cv.time_period,
     vol.Required(CONF_RESOURCES, default=[]):
         vol.All(cv.ensure_list, [vol.In(SENSOR_TYPES)]),
 })
 
 
-def setup_platform(hass, config, add_entities, discovery_info=None):
+async def async_setup_platform(
+        hass, config, async_add_entities, discovery_info=None):
     """Set up the shabbat config sensors."""
     havdalah = config.get(HAVDALAH_MINUTES)
-    geoid = config.get(GEOID)
-    latitude = config.get(LATITUDE)
-    longitude = config.get(LONGITUDE)
+    latitude = config.get(CONF_LATITUDE, hass.config.latitude)
+    longitude = config.get(CONF_LONGITUDE, hass.config.longitude)
     time_before = config.get(TIME_BEFORE_CHECK)
     time_after = config.get(TIME_AFTER_CHECK)
+    
+    if None in (latitude, longitude):
+        _LOGGER.error("Latitude or longitude not set in Home Assistant config")
+        return
+    
     entities = []
 
     for resource in config[CONF_RESOURCES]:
         sensor_type = resource.lower()
-
         if sensor_type not in SENSOR_TYPES:
             SENSOR_TYPES[sensor_type] = [
                 sensor_type.title(), '', 'mdi:flash']
-
-        entities.append(Shabbat(sensor_type, geoid, latitude, longitude,
+        entities.append(Shabbat(sensor_type, hass.config.time_zone, latitude, longitude,
                                 havdalah, time_before, time_after))
-
-    add_entities(entities)
-
+    async_add_entities(entities, True)
 
 class Shabbat(Entity):
     """Create shabbat sensor."""
@@ -77,33 +75,31 @@ class Shabbat(Entity):
     hebrew_date_db = None
     shabbatin = None
     shabbatout = None
-    datetoday = datetime.date.today()
-    fulltoday = datetime.datetime.today()
+    file_time_stamp = None
     friday = None
     saturday = None
 
-    def __init__(self, sensor_type, geoid, latitude, longitude,
+    def __init__(self, sensor_type, timezone, latitude, longitude,
                  havdalah, time_before, time_after):
         """Initialize the sensor."""
         self.type = sensor_type
-        self._geoid = geoid
         self._latitude = latitude
         self._longitude = longitude
+        self._timezone = timezone
         self._havdalah = havdalah
         self._time_before = time_before
         self._time_after = time_after
-        self._name = SENSOR_PREFIX + SENSOR_TYPES[self.type][2]
         self._friendly_name = SENSOR_TYPES[self.type][0]
-        self._icon = SENSOR_TYPES[self.type][1]
-        self._state = None
         self.update_db()
+        self._state = None
         self.get_full_time_in()
         self.get_full_time_out()
+        _LOGGER.debug("Sensor %s initialized", self.type)
 
     @property
     def name(self):
         """Return the name of the sensor."""
-        return self._name
+        return SENSOR_PREFIX + SENSOR_TYPES[self.type][2]
 
     @property
     def friendly_name(self):
@@ -113,18 +109,17 @@ class Shabbat(Entity):
     @property
     def icon(self):
         """Icon to use in the frontend, if any."""
-        return self._icon
+        return SENSOR_TYPES[self.type][1]
 
     @property
     def state(self):
         """Return the state of the sensor."""
         return self._state
 
-    @Throttle(SCAN_INTERVAL)
-    def update(self):
+    #@Throttle(SCAN_INTERVAL)
+    async def async_update(self):
         """Update our sensor state."""
-        self.datetoday = datetime.date.today()
-        self.fulltoday = datetime.datetime.today()
+        self.update_db()
         if self.type.__eq__('in'):
             self._state = self.get_time_in()
         elif self.type.__eq__('out'):
@@ -136,23 +131,40 @@ class Shabbat(Entity):
         elif self.type.__eq__('hebrew_date'):
             self._state = self.get_hebrew_date()
 
-    @Throttle(datetime.timedelta(minutes=5))
-    def update_db(self):
-        """Update the db."""
+    def create_db_file(self):
+        """Create the json db."""
         self.set_days()
         with urllib.request.urlopen(
-                "https://www.hebcal.com/hebcal/?v=1&cfg=fc&start="
-                + str(self.friday) + "&end=" + str(self.saturday)
-                + "&ss=on&c=on&geo=geoname&geonameid=" + str(self._geoid)
-                + "&m=" + str(self._havdalah) + "&s=on"
-        ) as url:
-            self.shabbat_db = json.loads(url.read().decode())
+            "https://www.hebcal.com/hebcal/?v=1&cfg=fc&start="
+            + str(self.friday) + "&end=" + str(self.saturday)
+            + "&ss=on&c=on&geo=pos&latitude=" + str(self._latitude)
+            + "&longitude=" + str(self._longitude)
+            + "&tzid=" + str(self._timezone)
+            + "&m=" + str(self._havdalah) + "&s=on"
+        ) as shabbat_url:
+            data = json.loads(shabbat_url.read().decode())
+        with codecs.open('shabbat_data.json', 'w', encoding='utf-8') as outfile:
+            json.dump(data, outfile, skipkeys=False, ensure_ascii=False, indent=4, separators=None, default=None,
+                      sort_keys=True)
         with urllib.request.urlopen(
-                "https://www.hebcal.com/converter/?cfg=json&gy="
-                + str(self.datetoday.year) + "&gm=" + str(self.datetoday.month)
-                + "&gd=" + str(self.datetoday.day) + "&g2h=1"
+            "https://www.hebcal.com/converter/?cfg=json&gy="
+            + str(datetime.date.today().year) + "&gm=" + str(datetime.date.today().month)
+            + "&gd=" + str(datetime.date.today().day) + "&g2h=1"
         ) as heb_url:
-            self.hebrew_date_db = json.loads(heb_url.read().decode())
+            heb_date = json.loads(heb_url.read().decode())
+        with codecs.open('hebdate_data.json', 'w', encoding='utf-8') as outfile:
+            json.dump(heb_date, outfile, skipkeys=False, ensure_ascii=False, indent=4, separators=None, default=None,
+                      sort_keys=True)
+
+    def update_db(self):
+        """Update the db."""
+        if self.file_time_stamp is None or self.file_time_stamp != datetime.date.today() or pathlib.Path('shabbat_data.json').is_file() or pathlib.Path('hebdate_data.json').is_file():
+            self.file_time_stamp = datetime.date.today()
+            self.create_db_file()
+        with open('shabbat_data.json', encoding='utf-8') as data_file:
+            self.shabbat_db = json.loads(data_file.read())
+        with open('hebdate_data.json', encoding='utf-8') as hebdata_file:
+            self.hebrew_date_db = json.loads(hebdata_file.read())
         self.get_full_time_in()
         self.get_full_time_out()
 
@@ -162,7 +174,7 @@ class Shabbat(Entity):
         self.friday = datetime.date.today()+datetime.timedelta(days=weekday)
         self.saturday = datetime.date.today()+datetime.timedelta(
             days=weekday+1)
-    
+
     @classmethod
     def set_friday(cls, day):
         """Set friday day."""
@@ -245,7 +257,7 @@ class Shabbat(Entity):
             is_out = is_out + datetime.timedelta(
                 minutes=int(self._time_after))
             if (is_in.replace(tzinfo=None) <
-                    self.fulltoday < is_out.replace(tzinfo=None)):
+                    datetime.datetime.today() < is_out.replace(tzinfo=None)):
                 return 'True'
             return 'False'
         return 'False'
