@@ -64,7 +64,7 @@ async def async_setup_platform(
         if sensor_type not in SENSOR_TYPES:
             SENSOR_TYPES[sensor_type] = [
                 sensor_type.title(), '', 'mdi:flash']
-        entities.append(Shabbat(sensor_type, hass.config.time_zone, latitude, longitude,
+        entities.append(Shabbat(hass, sensor_type, hass.config.time_zone, latitude, longitude,
                                 havdalah, time_before, time_after))
     async_add_entities(entities, True)
 
@@ -78,8 +78,9 @@ class Shabbat(Entity):
     file_time_stamp = None
     friday = None
     saturday = None
-
-    def __init__(self, sensor_type, timezone, latitude, longitude,
+    config_path = None
+    
+    def __init__(self, hass, sensor_type, timezone, latitude, longitude,
                  havdalah, time_before, time_after):
         """Initialize the sensor."""
         self.type = sensor_type
@@ -89,12 +90,14 @@ class Shabbat(Entity):
         self._havdalah = havdalah
         self._time_before = time_before
         self._time_after = time_after
+        self.config_path = hass.config.path()+"/custom_components/sensor/"
         self._friendly_name = SENSOR_TYPES[self.type][0]
         self.update_db()
         self._state = None
         self.get_full_time_in()
         self.get_full_time_out()
-        _LOGGER.debug("Sensor %s initialized", self.type)
+        
+        #_LOGGER.debug("Sensor %s initialized", self.type)
 
     @property
     def name(self):
@@ -143,7 +146,7 @@ class Shabbat(Entity):
             + "&m=" + str(self._havdalah) + "&s=on"
         ) as shabbat_url:
             data = json.loads(shabbat_url.read().decode())
-        with codecs.open('shabbat_data.json', 'w', encoding='utf-8') as outfile:
+        with codecs.open(self.config_path+'shabbat_data.json', 'w', encoding='utf-8') as outfile:
             json.dump(data, outfile, skipkeys=False, ensure_ascii=False, indent=4, separators=None, default=None,
                       sort_keys=True)
         with urllib.request.urlopen(
@@ -152,18 +155,18 @@ class Shabbat(Entity):
             + "&gd=" + str(datetime.date.today().day) + "&g2h=1"
         ) as heb_url:
             heb_date = json.loads(heb_url.read().decode())
-        with codecs.open('hebdate_data.json', 'w', encoding='utf-8') as outfile:
+        with codecs.open(self.config_path+'hebdate_data.json', 'w', encoding='utf-8') as outfile:
             json.dump(heb_date, outfile, skipkeys=False, ensure_ascii=False, indent=4, separators=None, default=None,
                       sort_keys=True)
 
     def update_db(self):
         """Update the db."""
-        if self.file_time_stamp is None or self.file_time_stamp != datetime.date.today():
+        if self.file_time_stamp is None or self.file_time_stamp != datetime.date.today() : #or pathlib.Path('shabbat_data.json').is_file() or pathlib.Path('hebdate_data.json').is_file()
             self.file_time_stamp = datetime.date.today()
             self.create_db_file()
-        with open('shabbat_data.json', encoding='utf-8') as data_file:
+        with open(self.config_path+'shabbat_data.json', encoding='utf-8') as data_file:
             self.shabbat_db = json.loads(data_file.read())
-        with open('hebdate_data.json', encoding='utf-8') as hebdata_file:
+        with open(self.config_path+'hebdate_data.json', encoding='utf-8') as hebdata_file:
             self.hebrew_date_db = json.loads(hebdata_file.read())
         self.get_full_time_in()
         self.get_full_time_out()
