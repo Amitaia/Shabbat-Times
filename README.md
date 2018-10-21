@@ -33,6 +33,9 @@ Updates 07.10.2018
         time_zone: Asia/Jerusalem
    ```
    
+   Updates 21.10.2018
+   1. Add Hebrew days name ..
+   
 ## Guide How to use it
 
 ### Requirements
