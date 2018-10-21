@@ -268,8 +268,23 @@ class Shabbat(Entity):
     # convert to hebrew date
     def get_hebrew_date(self):
         """Convert to hebrew date."""
-        return self.hebrew_date_db['hebrew']
+        day = self.heb_day_str()
+        return  day + self.hebrew_date_db['hebrew']
 
+    @classmethod
+    def heb_day_str(cls):
+        """Set hebrew day."""
+        switcher = {
+            7: "יום ראשון, ",
+            1: "יום שני, ",
+            2: "יום שלישי, ",
+            3: "יום רביעי, ",
+            4: "יום חמישי, ",
+            5: "יום שישי, ",
+            6: "יום שבת, ",
+        }
+        return switcher.get(datetime.datetime.today().isoweekday())
+        
     # check if the time is correct
     @classmethod
     def is_time_format(cls, input_time):
