@@ -3,6 +3,7 @@ Platform to get Shabbath Times And Shabbath information for Home Assistant.
 
 Document will come soon...
 """
+import asyncio
 import logging
 import urllib
 import json
@@ -43,7 +44,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
         vol.All(cv.ensure_list, [vol.In(SENSOR_TYPES)]),
 })
 
-
+@asyncio.coroutine
 async def async_setup_platform(
         hass, config, async_add_entities, discovery_info=None):
     """Set up the shabbat config sensors."""
@@ -146,6 +147,12 @@ class Shabbat(Entity):
             + "&m=" + str(self._havdalah) + "&s=on"
         ) as shabbat_url:
             data = json.loads(shabbat_url.read().decode())
+        found = 0
+        for i in range(len(data)):
+            if 'candles' in data[i].values():
+                found += 1
+                if found > 1:
+                    data.pop(i) 
         with codecs.open(self.config_path+'shabbat_data.json', 'w', encoding='utf-8') as outfile:
             json.dump(data, outfile, skipkeys=False, ensure_ascii=False, indent=4, separators=None, default=None,
                       sort_keys=True)
@@ -197,7 +204,7 @@ class Shabbat(Entity):
         """Get shabbat entrace."""
         result = ''
         for extract_data in self.shabbat_db:
-            if extract_data['className'] == "candles":
+            if "candles" in extract_data.values():
                 result = extract_data['start'][11:16]
         if self.is_time_format(result):
             return result
@@ -208,7 +215,7 @@ class Shabbat(Entity):
         """Get shabbat time exit."""
         result = ''
         for extract_data in self.shabbat_db:
-            if extract_data['className'] == "havdalah":
+            if "havdalah" in extract_data.values():
                 result = extract_data['start'][11:16]
         if self.is_time_format(result):
             return result
@@ -218,7 +225,7 @@ class Shabbat(Entity):
     def get_full_time_in(self):
         """Get full time entrace shabbat for check if is shabbat now."""
         for extract_data in self.shabbat_db:
-            if extract_data['className'] == "candles":
+            if "candles" in extract_data.values():
                 self.shabbatin = extract_data['start']
         if self.shabbatin is not None:
             self.shabbatin = self.shabbatin
@@ -227,7 +234,7 @@ class Shabbat(Entity):
     def get_full_time_out(self):
         """Get full time exit shabbat for check if is shabbat now."""
         for extract_data in self.shabbat_db:
-            if extract_data['className'] == "havdalah":
+            if "havdalah" in extract_data.values():
                 self.shabbatout = extract_data['start']
         if self.shabbatout is not None:
             self.shabbatout = self.shabbatout
@@ -238,7 +245,7 @@ class Shabbat(Entity):
         result = 'שבת מיוחדת'
         get_shabbat_name = None
         for extract_data in self.shabbat_db:
-            if extract_data['className'] == "parashat":
+            if "parashat" in extract_data.values():
                 result = extract_data['hebrew']
             for data in extract_data.keys():
                 if data == 'subcat' and extract_data[data] == 'shabbat':
