@@ -59,7 +59,7 @@ Updates 03.12.2018
     - out
     - parasha
     - hebrew_date
-    - is_shabbat """ state get True if is shabbat and False is shabbat end."""
+    - is_shabbat  # state get True if is shabbat and False is shabbat end.
   ```
   
   ### Entity Optional
