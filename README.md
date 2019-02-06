@@ -47,19 +47,20 @@ Updates 03.12.2018
 
 * First need to create folder "sensor" in your HomeAssistant config/custom_components folder
 * Copy python file "shabbat.py" to the HA config ./custom_components/sensor folder.
-* Now you need to add those lines in sensor config :
+* Now you need to add those lines in configuration.yaml :
 
 ```python
-- platform: shabbat
-  havdalah_calc: 42 
-  time_before_check: 10
-  time_after_check: 10
-  resources:
-    - in
-    - out
-    - parasha
-    - hebrew_date
-    - is_shabbat  # state get True if is shabbat and False is shabbat end.
+sensor:
+  - platform: shabbat
+    havdalah_calc: 42 
+    time_before_check: 10
+    time_after_check: 10
+    resources:
+      - in
+      - out
+      - parasha
+      - hebrew_date
+      - is_shabbat  # state get True if is shabbat and False is shabbat end.
   ```
   
   ### Entity Optional
