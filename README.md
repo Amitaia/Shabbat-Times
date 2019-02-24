@@ -49,7 +49,7 @@ Updates 23.02.2019
 ### Requirements
 
 * First need to create folder "shabat" in your HomeAssistant config/custom_components folder
-* Copy python file "sensor.py" to the HA config ./custom_components/shabat folder.
+* Copy python file "sensor.py" to the HA config ./custom_components/shabbat/ folder.
 * Now you need to add those lines in configuration.yaml :
 
 ```python
@@ -68,7 +68,7 @@ sensor:
   
   ### Entity Optional
   
-  havdalah_calc =   By defaule he get 42 Min , you can set 50 or 72 for other methods
+  havdalah_calc =   By defaule he get 42 Min , you can set 50Min or 72Min for other methods
   
   time_before_check: By defaule he get 10 Min , you can set minutes so the sensor can check if is shabbat
   
