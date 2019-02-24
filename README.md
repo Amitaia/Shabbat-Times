@@ -38,6 +38,9 @@ Updates 21.10.2018
 
 Updates 03.12.2018
 1. fix shabbat entrace , get wronk value cause chanuka times
+
+Updates 23.02.2019
+1. Adjusted file and folder names to 0.88+ format
    
    
    
@@ -45,8 +48,8 @@ Updates 03.12.2018
 
 ### Requirements
 
-* First need to create folder "sensor" in your HomeAssistant config/custom_components folder
-* Copy python file "shabbat.py" to the HA config ./custom_components/sensor folder.
+* First need to create folder "shabat" in your HomeAssistant config/custom_components folder
+* Copy python file "sensor.py" to the HA config ./custom_components/shabat folder.
 * Now you need to add those lines in configuration.yaml :
 
 ```python

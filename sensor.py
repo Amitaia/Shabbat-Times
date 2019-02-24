@@ -91,7 +91,7 @@ class Shabbat(Entity):
         self._havdalah = havdalah
         self._time_before = time_before
         self._time_after = time_after
-        self.config_path = hass.config.path()+"/custom_components/sensor/"
+        self.config_path = hass.config.path()+"/custom_components/shabbat/"
         self._friendly_name = SENSOR_TYPES[self.type][0]
         self.update_db()
         self._state = None
