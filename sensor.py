@@ -3,7 +3,6 @@ Platform to get Shabbath Times And Shabbath information for Home Assistant.
 
 Document will come soon...
 """
-import asyncio
 import logging
 import urllib
 import json
@@ -15,9 +14,11 @@ import voluptuous as vol
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 import homeassistant.helpers.config_validation as cv
 from homeassistant.const import (
-    CONF_LATITUDE, CONF_LONGITUDE, CONF_NAME, CONF_RESOURCES)
-from homeassistant.util import Throttle
+    CONF_LATITUDE, CONF_LONGITUDE, CONF_RESOURCES)
 from homeassistant.helpers.entity import Entity
+from homeassistant.core import callback
+from homeassistant.helpers.entity import async_generate_entity_id
+from homeassistant.components.sensor import ENTITY_ID_FORMAT
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
         vol.All(cv.ensure_list, [vol.In(SENSOR_TYPES)]),
 })
 
-@asyncio.coroutine
+
 async def async_setup_platform(
         hass, config, async_add_entities, discovery_info=None):
     """Set up the shabbat config sensors."""
@@ -53,11 +54,11 @@ async def async_setup_platform(
     longitude = config.get(CONF_LONGITUDE, hass.config.longitude)
     time_before = config.get(TIME_BEFORE_CHECK)
     time_after = config.get(TIME_AFTER_CHECK)
-    
+
     if None in (latitude, longitude):
         _LOGGER.error("Latitude or longitude not set in Home Assistant config")
         return
-    
+
     entities = []
 
     for resource in config[CONF_RESOURCES]:
@@ -67,11 +68,11 @@ async def async_setup_platform(
                 sensor_type.title(), '', 'mdi:flash']
         entities.append(Shabbat(hass, sensor_type, hass.config.time_zone, latitude, longitude,
                                 havdalah, time_before, time_after))
-    async_add_entities(entities, True)
+    async_add_entities(entities, False)
+
 
 class Shabbat(Entity):
     """Create shabbat sensor."""
-
     shabbat_db = None
     hebrew_date_db = None
     shabbatin = None
@@ -80,11 +81,14 @@ class Shabbat(Entity):
     friday = None
     saturday = None
     config_path = None
-    
+
     def __init__(self, hass, sensor_type, timezone, latitude, longitude,
                  havdalah, time_before, time_after):
         """Initialize the sensor."""
         self.type = sensor_type
+        self.entity_id = async_generate_entity_id(
+            ENTITY_ID_FORMAT,
+            '_'.join([SENSOR_PREFIX, SENSOR_TYPES[self.type][2]]), hass=hass)
         self._latitude = latitude
         self._longitude = longitude
         self._timezone = timezone
@@ -92,13 +96,9 @@ class Shabbat(Entity):
         self._time_before = time_before
         self._time_after = time_after
         self.config_path = hass.config.path()+"/custom_components/shabbat/"
-        self._friendly_name = SENSOR_TYPES[self.type][0]
-        self.update_db()
         self._state = None
-        self.get_full_time_in()
-        self.get_full_time_out()
-        
-        #_LOGGER.debug("Sensor %s initialized", self.type)
+        # async_track_time_interval(
+        #     hass, self.async_update, datetime.timedelta(days=1))
 
     @property
     def name(self):
@@ -106,78 +106,93 @@ class Shabbat(Entity):
         return SENSOR_PREFIX + SENSOR_TYPES[self.type][2]
 
     @property
-    def friendly_name(self):
-        """Return the name of the sensor."""
-        return self._friendly_name
-
-    @property
     def icon(self):
         """Icon to use in the frontend, if any."""
         return SENSOR_TYPES[self.type][1]
+
+    @property
+    def should_poll(self):
+        """Return true if the device should be polled for state updates"""
+        return True
 
     @property
     def state(self):
         """Return the state of the sensor."""
         return self._state
 
-    #@Throttle(SCAN_INTERVAL)
     async def async_update(self):
         """Update our sensor state."""
-        self.update_db()
-        if self.type.__eq__('in'):
-            self._state = self.get_time_in()
-        elif self.type.__eq__('out'):
-            self._state = self.get_time_out()
-        elif self.type.__eq__('is_shabbat'):
-            self._state = self.is_shabbat()
-        elif self.type.__eq__('parasha'):
-            self._state = self.get_parasha()
-        elif self.type.__eq__('hebrew_date'):
-            self._state = self.get_hebrew_date()
+        await self.update_db()
+        type_to_func = {
+            'in': self.get_time_in,
+            'out': self.get_time_out,
+            'is_shabbat': self.is_shabbat,
+            'parasha': self.get_parasha,
+            'hebrew_date': self.get_hebrew_date
+        }
+        self._state = await type_to_func[self.type]()
 
-    def create_db_file(self):
+        await self.async_update_ha_state()
+
+    async def create_db_file(self):
         """Create the json db."""
         self.set_days()
+        self.file_time_stamp = datetime.date.today()
+        convert = {"date": str(self.file_time_stamp)}
+        with codecs.open(self.config_path+'date_update.json', 'w', encoding='utf-8') as outfile:
+            json.dump(convert, outfile, skipkeys=False, ensure_ascii=False, indent=4,
+                      separators=None, default=None, sort_keys=True)
+
         with urllib.request.urlopen(
-            "https://www.hebcal.com/hebcal/?v=1&cfg=fc&start="
-            + str(self.friday) + "&end=" + str(self.saturday)
-            + "&ss=on&c=on&geo=pos&latitude=" + str(self._latitude)
-            + "&longitude=" + str(self._longitude)
-            + "&tzid=" + str(self._timezone)
-            + "&m=" + str(self._havdalah) + "&s=on"
+                "https://www.hebcal.com/hebcal/?v=1&cfg=fc&start="
+                + str(self.friday) + "&end=" + str(self.saturday)
+                + "&ss=on&c=on&geo=pos&latitude=" + str(self._latitude)
+                + "&longitude=" + str(self._longitude)
+                + "&tzid=" + str(self._timezone)
+                + "&m=" + str(self._havdalah) + "&s=on"
         ) as shabbat_url:
-            data = json.loads(shabbat_url.read().decode())
+            self.shabbat_db = json.loads(shabbat_url.read().decode())
         found = 0
-        for i in range(len(data)):
-            if 'candles' in data[i].values():
+        for i in range(len(self.shabbat_db)):
+            if 'candles' in self.shabbat_db[i].values():
                 found += 1
                 if found > 1:
-                    data.pop(i) 
+                    self.shabbat_db.pop(i)
         with codecs.open(self.config_path+'shabbat_data.json', 'w', encoding='utf-8') as outfile:
-            json.dump(data, outfile, skipkeys=False, ensure_ascii=False, indent=4, separators=None, default=None,
-                      sort_keys=True)
+            json.dump(self.shabbat_db, outfile, skipkeys=False, ensure_ascii=False, indent=4,
+                      separators=None, default=None, sort_keys=True)
+
         with urllib.request.urlopen(
-            "https://www.hebcal.com/converter/?cfg=json&gy="
-            + str(datetime.date.today().year) + "&gm=" + str(datetime.date.today().month)
-            + "&gd=" + str(datetime.date.today().day) + "&g2h=1"
+                "https://www.hebcal.com/converter/?cfg=json&gy="
+                + str(datetime.date.today().year) + "&gm=" + str(datetime.date.today().month)
+                + "&gd=" + str(datetime.date.today().day) + "&g2h=1"
         ) as heb_url:
-            heb_date = json.loads(heb_url.read().decode())
+            self.hebrew_date_db = json.loads(heb_url.read().decode())
         with codecs.open(self.config_path+'hebdate_data.json', 'w', encoding='utf-8') as outfile:
-            json.dump(heb_date, outfile, skipkeys=False, ensure_ascii=False, indent=4, separators=None, default=None,
-                      sort_keys=True)
+            json.dump(self.hebrew_date_db, outfile, skipkeys=False, ensure_ascii=False, indent=4,
+                      separators=None, default=None, sort_keys=True)
 
-    def update_db(self):
+    async def update_db(self):
         """Update the db."""
-        if self.file_time_stamp is None or self.file_time_stamp != datetime.date.today() : #or pathlib.Path('shabbat_data.json').is_file() or pathlib.Path('hebdate_data.json').is_file()
-            self.file_time_stamp = datetime.date.today()
-            self.create_db_file()
-        with open(self.config_path+'shabbat_data.json', encoding='utf-8') as data_file:
-            self.shabbat_db = json.loads(data_file.read())
-        with open(self.config_path+'hebdate_data.json', encoding='utf-8') as hebdata_file:
-            self.hebrew_date_db = json.loads(hebdata_file.read())
-        self.get_full_time_in()
-        self.get_full_time_out()
+        if not pathlib.Path(self.config_path+'shabbat_data.json').is_file() or \
+                not pathlib.Path(self.config_path+'hebdate_data.json').is_file() or \
+                not pathlib.Path(self.config_path+'date_update.json').is_file():
+            await self.create_db_file()
+        elif self.shabbat_db is None or self.hebrew_date_db is None or self.file_time_stamp is None:
+            with open(self.config_path+'shabbat_data.json', encoding='utf-8') as data_file:
+                self.shabbat_db = json.loads(data_file.read())
+            with open(self.config_path+'hebdate_data.json', encoding='utf-8') as hebdata_file:
+                self.hebrew_date_db = json.loads(hebdata_file.read())
+            with open(self.config_path+'date_update.json', encoding='utf-8') as data_file:
+                data = json.loads(data_file.read())
+                self.file_time_stamp = datetime.datetime.strptime(
+                    data['date'], '%Y-%m-%d').date()
+        elif self.file_time_stamp != datetime.date.today():
+            await self.create_db_file()
+        await self.get_full_time_in()
+        await self.get_full_time_out()
 
+    @callback
     def set_days(self):
         """Set the friday and saturday."""
         weekday = self.set_friday(datetime.date.today().isoweekday())
@@ -200,7 +215,7 @@ class Shabbat(Entity):
         return switcher.get(day)
 
     # get shabbat entrace
-    def get_time_in(self):
+    async def get_time_in(self):
         """Get shabbat entrace."""
         result = ''
         for extract_data in self.shabbat_db:
@@ -211,7 +226,7 @@ class Shabbat(Entity):
         return 'Error'
 
     # get shabbat time exit
-    def get_time_out(self):
+    async def get_time_out(self):
         """Get shabbat time exit."""
         result = ''
         for extract_data in self.shabbat_db:
@@ -222,7 +237,7 @@ class Shabbat(Entity):
         return 'Error'
 
     # get full time entrace shabbat for check if is shabbat now
-    def get_full_time_in(self):
+    async def get_full_time_in(self):
         """Get full time entrace shabbat for check if is shabbat now."""
         for extract_data in self.shabbat_db:
             if "candles" in extract_data.values():
@@ -231,7 +246,7 @@ class Shabbat(Entity):
             self.shabbatin = self.shabbatin
 
     # get full time exit shabbat for check if is shabbat now
-    def get_full_time_out(self):
+    async def get_full_time_out(self):
         """Get full time exit shabbat for check if is shabbat now."""
         for extract_data in self.shabbat_db:
             if "havdalah" in extract_data.values():
@@ -240,7 +255,7 @@ class Shabbat(Entity):
             self.shabbatout = self.shabbatout
 
     # get parashat hashavo'h
-    def get_parasha(self):
+    async def get_parasha(self):
         """Get parashat hashavo'h."""
         result = 'שבת מיוחדת'
         get_shabbat_name = None
@@ -255,7 +270,7 @@ class Shabbat(Entity):
         return result
 
     # check if is shabbat now / return true or false
-    def is_shabbat(self):
+    async def is_shabbat(self):
         """Check if is shabbat now / return true or false."""
         if self.shabbatin is not None and self.shabbatout is not None:
             is_in = datetime.datetime.strptime(
@@ -273,7 +288,7 @@ class Shabbat(Entity):
         return 'False'
 
     # convert to hebrew date
-    def get_hebrew_date(self):
+    async def get_hebrew_date(self):
         """Convert to hebrew date."""
         day = self.heb_day_str()
         return  day + self.hebrew_date_db['hebrew']
@@ -291,7 +306,7 @@ class Shabbat(Entity):
             6: "יום שבת, ",
         }
         return switcher.get(datetime.datetime.today().isoweekday())
-        
+
     # check if the time is correct
     @classmethod
     def is_time_format(cls, input_time):
