@@ -51,7 +51,7 @@ Updates 12.03.2019
 
 ### Requirements
 
-* First need to create folder "shabat" in your HomeAssistant config/custom_components folder
+* First need to create folder "shabbat" in your HomeAssistant config/custom_components folder
 * Copy python file "sensor.py" to the HA config ./custom_components/shabbat/ folder.
 * Now you need to add those lines in configuration.yaml :
 
