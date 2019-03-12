@@ -42,7 +42,10 @@ Updates 03.12.2018
 Updates 23.02.2019
 1. Adjusted file and folder names to 0.88+ format
    
-   
+Updates 12.03.2019
+1. Change the platform configuration, working with full ASYNC. Thanks to Tomer Figenblat for Helps.
+2. Adding a database date save date, allows you to restore the database base instantly regardless of web.   
+
    
 ## Guide How to use it
 
