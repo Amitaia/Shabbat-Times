@@ -143,34 +143,40 @@ class Shabbat(Entity):
             json.dump(convert, outfile, skipkeys=False, ensure_ascii=False, indent=4,
                       separators=None, default=None, sort_keys=True)
 
-        with urllib.request.urlopen(
-                "https://www.hebcal.com/hebcal/?v=1&cfg=fc&start="
-                + str(self.friday) + "&end=" + str(self.saturday)
-                + "&ss=on&c=on&geo=pos&latitude=" + str(self._latitude)
-                + "&longitude=" + str(self._longitude)
-                + "&tzid=" + str(self._timezone)
-                + "&m=" + str(self._havdalah) + "&s=on"
-        ) as shabbat_url:
-            self.shabbat_db = json.loads(shabbat_url.read().decode())
-        found = 0
-        for i in range(len(self.shabbat_db)):
-            if 'candles' in self.shabbat_db[i].values():
-                found += 1
-                if found > 1:
-                    self.shabbat_db.pop(i)
-        with codecs.open(self.config_path+'shabbat_data.json', 'w', encoding='utf-8') as outfile:
-            json.dump(self.shabbat_db, outfile, skipkeys=False, ensure_ascii=False, indent=4,
-                      separators=None, default=None, sort_keys=True)
+        try:
+            with urllib.request.urlopen(
+                    "https://www.hebcal.com/hebcal/?v=1&cfg=fc&start="
+                    + str(self.friday) + "&end=" + str(self.saturday)
+                    + "&ss=on&c=on&geo=pos&latitude=" + str(self._latitude)
+                    + "&longitude=" + str(self._longitude)
+                    + "&tzid=" + str(self._timezone)
+                    + "&m=" + str(self._havdalah) + "&s=on"
+            ) as shabbat_url:
+                self.shabbat_db = json.loads(shabbat_url.read().decode())
+            found = 0
+            for i in range(len(self.shabbat_db)):
+                if 'candles' in self.shabbat_db[i].values():
+                    found += 1
+                    if found > 1:
+                        self.shabbat_db.pop(i)
+            with codecs.open(self.config_path+'shabbat_data.json', 'w', encoding='utf-8') as outfile:
+                json.dump(self.shabbat_db, outfile, skipkeys=False, ensure_ascii=False, indent=4,
+                          separators=None, default=None, sort_keys=True)
+        except:
+            self.shabbat_db = self.shabbat_db
 
-        with urllib.request.urlopen(
-                "https://www.hebcal.com/converter/?cfg=json&gy="
-                + str(datetime.date.today().year) + "&gm=" + str(datetime.date.today().month)
-                + "&gd=" + str(datetime.date.today().day) + "&g2h=1"
-        ) as heb_url:
-            self.hebrew_date_db = json.loads(heb_url.read().decode())
-        with codecs.open(self.config_path+'hebdate_data.json', 'w', encoding='utf-8') as outfile:
-            json.dump(self.hebrew_date_db, outfile, skipkeys=False, ensure_ascii=False, indent=4,
-                      separators=None, default=None, sort_keys=True)
+        try:
+            with urllib.request.urlopen(
+                    "https://www.hebcal.com/converter/?cfg=json&gy="
+                    + str(datetime.date.today().year) + "&gm=" + str(datetime.date.today().month)
+                    + "&gd=" + str(datetime.date.today().day) + "&g2h=1"
+            ) as heb_url:
+                self.hebrew_date_db = json.loads(heb_url.read().decode())
+            with codecs.open(self.config_path+'hebdate_data.json', 'w', encoding='utf-8') as outfile:
+                json.dump(self.hebrew_date_db, outfile, skipkeys=False, ensure_ascii=False, indent=4,
+                          separators=None, default=None, sort_keys=True)
+        except:
+            self.hebrew_date_db = self.hebrew_date_db
 
     async def update_db(self):
         """Update the db."""
