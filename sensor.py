@@ -73,7 +73,7 @@ async def async_setup_platform(
 
 class Shabbat(Entity):
     """Create shabbat sensor."""
-    shabbat_db = None
+    shabbat_db = []
     hebrew_date_db = None
     shabbatin = None
     shabbatout = None
@@ -95,7 +95,7 @@ class Shabbat(Entity):
         self._havdalah = havdalah
         self._time_before = time_before
         self._time_after = time_after
-        self.config_path = hass.config.path()+"/custom_components/shabbat/"
+        self.config_path = hass.config.path() + "/custom_components/shabbat/"
         self._state = None
         # async_track_time_interval(
         #     hass, self.async_update, datetime.timedelta(days=1))
@@ -137,9 +137,10 @@ class Shabbat(Entity):
     async def create_db_file(self):
         """Create the json db."""
         self.set_days()
+        self.shabbat_db = []
         self.file_time_stamp = datetime.date.today()
         convert = {"date": str(self.file_time_stamp)}
-        with codecs.open(self.config_path+'date_update.json', 'w', encoding='utf-8') as outfile:
+        with codecs.open(self.config_path + 'date_update.json', 'w', encoding='utf-8') as outfile:
             json.dump(convert, outfile, skipkeys=False, ensure_ascii=False, indent=4,
                       separators=None, default=None, sort_keys=True)
 
@@ -152,14 +153,21 @@ class Shabbat(Entity):
                     + "&tzid=" + str(self._timezone)
                     + "&m=" + str(self._havdalah) + "&s=on"
             ) as shabbat_url:
-                self.shabbat_db = json.loads(shabbat_url.read().decode())
-            found = 0
-            for i in range(len(self.shabbat_db)):
-                if 'candles' in self.shabbat_db[i].values():
-                    found += 1
-                    if found > 1:
-                        self.shabbat_db.pop(i)
-            with codecs.open(self.config_path+'shabbat_data.json', 'w', encoding='utf-8') as outfile:
+                temp_db = json.loads(shabbat_url.read().decode())
+            for extract_data in temp_db:
+                if "candles" in extract_data.values():
+                    day = datetime.datetime.strptime(extract_data['start'], '%Y-%m-%dT%H:%M:%S').isoweekday()
+                    if day is 5:
+                        self.shabbat_db.append(extract_data)
+                    elif day is 6:
+                        havdalah_time = str(datetime.datetime.strptime(extract_data['start'], '%Y-%m-%dT%H:%M:%S')
+                                            + datetime.timedelta(minutes=5)).replace(" ", "T")
+                        self.shabbat_db.append(
+                            {'hebrew': 'הבדלה - 42 דקות', 'start': havdalah_time, 'className': 'havdalah',
+                             'allDay': False, 'title': 'הבדלה - 42 דקות'})
+                else:
+                    self.shabbat_db.append(extract_data)
+            with codecs.open(self.config_path + 'shabbat_data.json', 'w', encoding='utf-8') as outfile:
                 json.dump(self.shabbat_db, outfile, skipkeys=False, ensure_ascii=False, indent=4,
                           separators=None, default=None, sort_keys=True)
         except:
@@ -172,7 +180,7 @@ class Shabbat(Entity):
                     + "&gd=" + str(datetime.date.today().day) + "&g2h=1"
             ) as heb_url:
                 self.hebrew_date_db = json.loads(heb_url.read().decode())
-            with codecs.open(self.config_path+'hebdate_data.json', 'w', encoding='utf-8') as outfile:
+            with codecs.open(self.config_path + 'hebdate_data.json', 'w', encoding='utf-8') as outfile:
                 json.dump(self.hebrew_date_db, outfile, skipkeys=False, ensure_ascii=False, indent=4,
                           separators=None, default=None, sort_keys=True)
         except:
@@ -180,16 +188,16 @@ class Shabbat(Entity):
 
     async def update_db(self):
         """Update the db."""
-        if not pathlib.Path(self.config_path+'shabbat_data.json').is_file() or \
-                not pathlib.Path(self.config_path+'hebdate_data.json').is_file() or \
-                not pathlib.Path(self.config_path+'date_update.json').is_file():
+        if not pathlib.Path(self.config_path + 'shabbat_data.json').is_file() or \
+                not pathlib.Path(self.config_path + 'hebdate_data.json').is_file() or \
+                not pathlib.Path(self.config_path + 'date_update.json').is_file():
             await self.create_db_file()
-        elif self.shabbat_db is None or self.hebrew_date_db is None or self.file_time_stamp is None:
-            with open(self.config_path+'shabbat_data.json', encoding='utf-8') as data_file:
+        elif not self.shabbat_db or self.hebrew_date_db is None or self.file_time_stamp is None:
+            with open(self.config_path + 'shabbat_data.json', encoding='utf-8') as data_file:
                 self.shabbat_db = json.loads(data_file.read())
-            with open(self.config_path+'hebdate_data.json', encoding='utf-8') as hebdata_file:
+            with open(self.config_path + 'hebdate_data.json', encoding='utf-8') as hebdata_file:
                 self.hebrew_date_db = json.loads(hebdata_file.read())
-            with open(self.config_path+'date_update.json', encoding='utf-8') as data_file:
+            with open(self.config_path + 'date_update.json', encoding='utf-8') as data_file:
                 data = json.loads(data_file.read())
                 self.file_time_stamp = datetime.datetime.strptime(
                     data['date'], '%Y-%m-%d').date()
@@ -202,9 +210,9 @@ class Shabbat(Entity):
     def set_days(self):
         """Set the friday and saturday."""
         weekday = self.set_friday(datetime.date.today().isoweekday())
-        self.friday = datetime.date.today()+datetime.timedelta(days=weekday)
-        self.saturday = datetime.date.today()+datetime.timedelta(
-            days=weekday+1)
+        self.friday = datetime.date.today() + datetime.timedelta(days=weekday)
+        self.saturday = datetime.date.today() + datetime.timedelta(
+            days=weekday + 1)
 
     @classmethod
     def set_friday(cls, day):
@@ -272,7 +280,7 @@ class Shabbat(Entity):
                 if data == 'subcat' and extract_data[data] == 'shabbat':
                     get_shabbat_name = extract_data
         if get_shabbat_name is not None:
-            result = result+' - '+get_shabbat_name['hebrew']
+            result = result + ' - ' + get_shabbat_name['hebrew']
         return result
 
     # check if is shabbat now / return true or false
@@ -297,7 +305,7 @@ class Shabbat(Entity):
     async def get_hebrew_date(self):
         """Convert to hebrew date."""
         day = self.heb_day_str()
-        return  day + self.hebrew_date_db['hebrew']
+        return day + self.hebrew_date_db['hebrew']
 
     @classmethod
     def heb_day_str(cls):
