@@ -46,6 +46,8 @@ Updates 12.03.2019
 1. Change the platform configuration, working with full ASYNC. Thanks to Tomer Figenblat for Helps.
 2. Adding a database date save date, allows you to restore the database base instantly regardless of web.   
 
+Updates 03.06.2019
+1. Fix havdala time where is a yom tov in motchei shabbat.
    
 ## Guide How to use it
 
