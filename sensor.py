@@ -161,7 +161,8 @@ class Shabbat(Entity):
                         self.shabbat_db.append(extract_data)
                     elif day is 6:
                         havdalah_time = str(datetime.datetime.strptime(extract_data['start'], '%Y-%m-%dT%H:%M:%S')
-                                            + datetime.timedelta(minutes=5)).replace(" ", "T")
+                                            + datetime.timedelta(minutes=5)
+                                            + datetime.timedelta(days=1)).replace(" ", "T")
                         self.shabbat_db.append(
                             {'hebrew': 'הבדלה - 42 דקות', 'start': havdalah_time, 'className': 'havdalah',
                              'allDay': False, 'title': 'הבדלה - 42 דקות'})
