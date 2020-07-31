@@ -10,6 +10,8 @@ import codecs
 import pathlib
 import datetime
 import time
+import aiohttp
+import asyncio
 import voluptuous as vol
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 import homeassistant.helpers.config_validation as cv
@@ -69,6 +71,11 @@ async def async_setup_platform(
         entities.append(Shabbat(hass, sensor_type, hass.config.time_zone, latitude, longitude,
                                 havdalah, time_before, time_after))
     async_add_entities(entities, False)
+
+
+async def fetch(session, url):
+    async with session.get(url) as response:
+        return await response.text()
 
 
 class Shabbat(Entity):
@@ -143,26 +150,25 @@ class Shabbat(Entity):
         with codecs.open(self.config_path + 'date_update.json', 'w', encoding='utf-8') as outfile:
             json.dump(convert, outfile, skipkeys=False, ensure_ascii=False, indent=4,
                       separators=None, default=None, sort_keys=True)
-
         try:
-            with urllib.request.urlopen(
-                    "https://www.hebcal.com/hebcal/?v=1&cfg=fc&start="
-                    + str(self.friday) + "&end=" + str(self.saturday)
-                    + "&ss=on&c=on&geo=pos&latitude=" + str(self._latitude)
-                    + "&longitude=" + str(self._longitude)
-                    + "&tzid=" + str(self._timezone)
-                    + "&m=" + str(self._havdalah) + "&s=on"
-            ) as shabbat_url:
-                temp_db = json.loads(shabbat_url.read().decode())
+            async with aiohttp.ClientSession() as session:
+                html = await fetch(session,
+                                   "https://www.hebcal.com/hebcal/?v=1&cfg=fc&start="
+                                   + str(self.friday) + "&end=" + str(self.saturday)
+                                   + "&ss=on&c=on&geo=pos&latitude=" + str(self._latitude)
+                                   + "&longitude=" + str(self._longitude)
+                                   + "&tzid=" + str(self._timezone)
+                                   + "&m=" + str(self._havdalah) + "&s=on")
+                temp_db = json.loads(html)
+                #_LOGGER.error(str(temp_db))
             for extract_data in temp_db:
                 if "candles" in extract_data.values():
-                    day = datetime.datetime.strptime(extract_data['start'], '%Y-%m-%dT%H:%M:%S').isoweekday()
+                    day = datetime.datetime.strptime(extract_data['start'][:19], '%Y-%m-%dT%H:%M:%S').isoweekday()
                     if day is 5:
                         self.shabbat_db.append(extract_data)
                     elif day is 6:
-                        havdalah_time = str(datetime.datetime.strptime(extract_data['start'], '%Y-%m-%dT%H:%M:%S')
-                                            + datetime.timedelta(minutes=5)
-                                            + datetime.timedelta(days=1)).replace(" ", "T")
+                        havdalah_time = str(datetime.datetime.strptime(extract_data['start'][:19], '%Y-%m-%dT%H:%M:%S')
+                                            + datetime.timedelta(minutes=5)).replace(" ", "T")
                         self.shabbat_db.append(
                             {'hebrew': 'הבדלה - 42 דקות', 'start': havdalah_time, 'className': 'havdalah',
                              'allDay': False, 'title': 'הבדלה - 42 דקות'})
@@ -171,21 +177,21 @@ class Shabbat(Entity):
             with codecs.open(self.config_path + 'shabbat_data.json', 'w', encoding='utf-8') as outfile:
                 json.dump(self.shabbat_db, outfile, skipkeys=False, ensure_ascii=False, indent=4,
                           separators=None, default=None, sort_keys=True)
-        except:
-            self.shabbat_db = self.shabbat_db
+        except Exception as e:
+            _LOGGER.error("Error create shabbat db : %s", str(e))
 
         try:
-            with urllib.request.urlopen(
-                    "https://www.hebcal.com/converter/?cfg=json&gy="
-                    + str(datetime.date.today().year) + "&gm=" + str(datetime.date.today().month)
-                    + "&gd=" + str(datetime.date.today().day) + "&g2h=1"
-            ) as heb_url:
-                self.hebrew_date_db = json.loads(heb_url.read().decode())
+            async with aiohttp.ClientSession() as session:
+                html = await fetch(session,
+                                   "https://www.hebcal.com/converter/?cfg=json&gy="
+                                   + str(datetime.date.today().year) + "&gm=" + str(datetime.date.today().month)
+                                   + "&gd=" + str(datetime.date.today().day) + "&g2h=1")
+                self.hebrew_date_db = json.loads(html)
             with codecs.open(self.config_path + 'hebdate_data.json', 'w', encoding='utf-8') as outfile:
                 json.dump(self.hebrew_date_db, outfile, skipkeys=False, ensure_ascii=False, indent=4,
                           separators=None, default=None, sort_keys=True)
-        except:
-            self.hebrew_date_db = self.hebrew_date_db
+        except Exception as e:
+            _LOGGER.error("Error while to convert: %s", str(e))
 
     async def update_db(self):
         """Update the db."""
@@ -213,7 +219,7 @@ class Shabbat(Entity):
         weekday = self.set_friday(datetime.date.today().isoweekday())
         self.friday = datetime.date.today() + datetime.timedelta(days=weekday)
         self.saturday = datetime.date.today() + datetime.timedelta(
-            days=weekday + 1)
+            days=weekday + 2)
 
     @classmethod
     def set_friday(cls, day):
@@ -289,9 +295,9 @@ class Shabbat(Entity):
         """Check if is shabbat now / return true or false."""
         if self.shabbatin is not None and self.shabbatout is not None:
             is_in = datetime.datetime.strptime(
-                self.shabbatin, '%Y-%m-%dT%H:%M:%S')
+                self.shabbatin[:19], '%Y-%m-%dT%H:%M:%S')
             is_out = datetime.datetime.strptime(
-                self.shabbatout, '%Y-%m-%dT%H:%M:%S')
+                self.shabbatout[:19], '%Y-%m-%dT%H:%M:%S')
             is_in = is_in - datetime.timedelta(
                 minutes=int(self._time_before))
             is_out = is_out + datetime.timedelta(
