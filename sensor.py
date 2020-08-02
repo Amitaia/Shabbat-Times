@@ -145,6 +145,7 @@ class Shabbat(Entity):
         """Create the json db."""
         self.set_days()
         self.shabbat_db = []
+        temp_db = []
         self.file_time_stamp = datetime.date.today()
         convert = {"date": str(self.file_time_stamp)}
         with codecs.open(self.config_path + 'date_update.json', 'w', encoding='utf-8') as outfile:
@@ -160,14 +161,15 @@ class Shabbat(Entity):
                                    + "&tzid=" + str(self._timezone)
                                    + "&m=" + str(self._havdalah) + "&s=on")
                 temp_db = json.loads(html)
-                #_LOGGER.error(str(temp_db))
             for extract_data in temp_db:
+                if "start" in extract_data:
+                    extract_data['start'] = extract_data['start'].replace("+03:00", "").replace("+02:00", "")
                 if "candles" in extract_data.values():
-                    day = datetime.datetime.strptime(extract_data['start'][:19], '%Y-%m-%dT%H:%M:%S').isoweekday()
-                    if day is 5:
+                    day = datetime.datetime.strptime(extract_data['start'], '%Y-%m-%dT%H:%M:%S').isoweekday()
+                    if day == 5:
                         self.shabbat_db.append(extract_data)
-                    elif day is 6:
-                        havdalah_time = str(datetime.datetime.strptime(extract_data['start'][:19], '%Y-%m-%dT%H:%M:%S')
+                    elif day == 6:
+                        havdalah_time = str(datetime.datetime.strptime(extract_data['start'], '%Y-%m-%dT%H:%M:%S')
                                             + datetime.timedelta(minutes=5)).replace(" ", "T")
                         self.shabbat_db.append(
                             {'hebrew': 'הבדלה - 42 דקות', 'start': havdalah_time, 'className': 'havdalah',
@@ -178,7 +180,7 @@ class Shabbat(Entity):
                 json.dump(self.shabbat_db, outfile, skipkeys=False, ensure_ascii=False, indent=4,
                           separators=None, default=None, sort_keys=True)
         except Exception as e:
-            _LOGGER.error("Error create shabbat db : %s", str(e))
+            _LOGGER.error("Error in shabbat db : %s", str(e))
 
         try:
             async with aiohttp.ClientSession() as session:
@@ -191,7 +193,7 @@ class Shabbat(Entity):
                 json.dump(self.hebrew_date_db, outfile, skipkeys=False, ensure_ascii=False, indent=4,
                           separators=None, default=None, sort_keys=True)
         except Exception as e:
-            _LOGGER.error("Error while to convert: %s", str(e))
+            _LOGGER.error("Error in hebrew data: %s", str(e))
 
     async def update_db(self):
         """Update the db."""
@@ -295,9 +297,9 @@ class Shabbat(Entity):
         """Check if is shabbat now / return true or false."""
         if self.shabbatin is not None and self.shabbatout is not None:
             is_in = datetime.datetime.strptime(
-                self.shabbatin[:19], '%Y-%m-%dT%H:%M:%S')
+                self.shabbatin, '%Y-%m-%dT%H:%M:%S')
             is_out = datetime.datetime.strptime(
-                self.shabbatout[:19], '%Y-%m-%dT%H:%M:%S')
+                self.shabbatout, '%Y-%m-%dT%H:%M:%S')
             is_in = is_in - datetime.timedelta(
                 minutes=int(self._time_before))
             is_out = is_out + datetime.timedelta(
